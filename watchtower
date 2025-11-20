@@ -1,0 +1,1037 @@
+#!/usr/bin/env bash
+
+# watchtower - an extension to the watch command
+# copyright (c) 2025  Alex Rogers <https://github.com/linguisticmind>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+declare -- version='0.1.0'
+
+(:)
+
+declare -- script_source=$(realpath -- "$BASH_SOURCE")
+declare -- script_dir=$(dirname -- "$script_source")
+declare -- script_name="${script_source##*/}"
+declare -- config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/$script_name"
+
+declare -- watchtower_scripts_dir="$config_dir/scripts"
+
+shopt -s extglob globstar nullglob
+
+function bat_or_cat {
+  if { type -P batcat || type -P bat; } > /dev/null; then
+    "$_" "$@" 
+  else
+    local -- opt_numbers=
+    for (( i = 1; i <= $#; i++ )); do
+      case ${!i} in
+        -n ) opt_numbers=1 ;;
+        --style ) : "$((i + 1))"; [[ ${!_} =~ (^|,)numbers(,|$) ]] && opt_numbers=1 || opt_numbers=; (( i++ )) ;;
+        --style=* ) [[ ${!i##--style=} =~ (^|,)numbers(,|$) ]] && opt_numbers=1 || opt_numbers= ;;
+        -- ) set -- "${@:$(( i + 1 ))}"; break ;;
+      esac
+      if (( i == $# )); then set --; fi
+    done
+    cat ${opt_numbers:+-n} -- "$@"
+  fi
+}
+
+function get_unix_file_type {
+  local -- t
+  for t in f d L b c p S; do
+    test -"$t" "$1" && case $t in
+      f ) printf '%s\n' 'regular file' ;;
+      d ) printf '%s\n' 'directory' ;;
+      L ) printf '%s\n' 'symbolic link' ;;
+      b ) printf '%s\n' 'block special' ;;
+      c ) printf '%s\n' 'character special' ;;
+      p ) printf '%s\n' 'named pipe' ;;
+      S ) printf '%s\n' 'socket' ;;
+    esac && return 0
+  done
+  return 1
+}
+
+function print_quot {
+  local -- glob_spec_chars='*[[:space:][:cntrl:]!"#$&'\''()*;<>?\[\\\]^`{|}~]*'
+  local -- i
+  for (( i = 1; i <= $#; i++ )); do
+    if [[ ${!i} == $glob_spec_chars ]]; then
+      if [[ ${!i} == *\'* ]]; then
+        : "${!i}"; : "$(declare -p _)"; printf '%s' "${_#declare -- _=}"
+      else
+        printf '%s' "${!i@Q}"
+      fi
+    elif [[ ${!i} == '' ]]; then
+      printf '%s' \'\'
+    else
+      printf '%s' "${!i}"
+    fi
+    (( i < $# )) && printf ' '
+  done
+  printf '\n'
+}
+
+declare -- opts
+opts=$(POSIXLY_CORRECT=1 getopt -n "$script_name" -o 'c,e,x,X,v,V,y,Y,' -l 'command::,install,edit,rename,remove,rm,list,ls,menu,move,mv,copy,cp,link::,ln::,watch,no-watch,watch-bin:,watch-opts:,exec,no-exec,exec-print::,exec-no-print,exec-verbose,exec-no-verbose,exec-risky::,exec-no-risky,color::,no-color,help,version,config::,no-config,' -- "$@") || exit 1
+eval set -- "$opts"
+unset -v opts
+
+# --- BEGIN config ---
+declare -A conf_default_submode[list]='menu'
+declare -A conf_default_submode[command]='arguments'
+declare -A conf_default_submode[install]='copy'
+declare -A conf_default_submode[link]='symbolic'
+declare -A conf_default_submode[symbolic_link]='relative'
+declare -A conf_watch_opts
+
+declare -- opt_watch=1
+declare -- opt_watch_bin=
+declare -- opt_watch_opts='-ctpn 1'
+declare -- optdata__watch_opts__append=
+declare -- opt_exec=1
+declare -- opt_exec_print='almost-always'
+declare -- opt_exec_verbose=1
+declare -- opt_exec_risky='ask'
+declare -- opt_color='auto'
+# --- END config ---
+
+declare -- opt_config
+
+declare -- i
+for (( i = 1; i <= $#; i++ )); do
+  case ${!i} in
+    --config ) : "$((i + 1))"; test "${!_}" == 'none' && { opt_config="$_"; break; } ;;
+    --no-config ) opt_config='none'; break ;;
+    -- ) break ;;
+  esac
+done
+unset -v i
+
+declare -- config_file="$config_dir/config.bash"
+[[ ! $opt_config == 'none' ]] && test -f "$config_file" && source "$_"
+
+case ${opt_watch_opts@a} in
+  *a* ) ;;
+  * )
+    declare -a opt_watch_opts
+    declare -- arg
+    while read -rd '' arg; do
+      opt_watch_opts+=("$arg")
+    done < <(xargs printf '%s\0' < <(printf '%s' "$opt_watch_opts"))
+    unset -v arg
+    opt_watch_opts=("${opt_watch_opts[@]:1}")
+  ;;
+esac
+
+declare -- mode='default'
+declare -A modegrp_listable[default]=1
+declare -A modegrp_listable[edit]=1
+declare -A modegrp_listable[rename]=1
+declare -A modegrp_listable[remove]=1
+declare -- modegrp__listable__submode='action'
+declare -- mode__list__submode="${conf_default_submode[list]}"
+declare -- mode__command__submode="${conf_default_submode[command]}"
+declare -- mode__install__submode="${conf_default_submode[install]}"
+declare -- mode__link__submode="${conf_default_submode[link]}"
+declare -- mode__symbolic_link__submode="${conf_default_submode[symbolic_link]}"
+declare -- mode__edit__submode='default'
+
+declare -- modesw_command
+declare -- modeswdata__command__n
+declare -- modesw_link
+
+declare -- optdata__exec__n
+declare -- optdata__exec_print__flip
+declare -- optdata__exec_risky__n
+declare -a optdata__watch_opts__cli=()
+declare -a optdata__watch_opts__was_set=
+
+declare -- optc
+
+while true; do
+  case $1 in
+    --list | --ls ) modegrp__listable__submode='list' mode__list__submode='list'; shift ;;
+    --menu ) modegrp__listable__submode='list' mode__list__submode='menu'; shift ;;
+    -c )
+      mode='command'
+      ((modeswdata__command__n++))
+      case $modeswdata__command__n in
+        1 ) mode__command__submode='arguments' ;;
+        2 ) mode__command__submode='string' ;;
+      esac
+      shift
+    ;;
+    --command ) mode='command' modesw_command="$2"; shift 2 ;;
+    --install ) mode='install'; shift ;;
+    -e | --edit ) mode='edit'; shift ;;
+    --rename ) mode='rename'; shift ;;
+    --remove | --rm ) mode='remove'; shift ;;
+    --move | --mv ) mode__install__submode='move'; shift ;;
+    --copy | --cp ) mode__install__submode='copy' mode__edit__submode='copy'; shift ;;
+    --link | --ln ) mode__install__submode='link' modesw_link="$2"; shift 2 ;;
+    --watch ) opt_watch=1; shift ;;
+    --no-watch ) opt_watch=; shift ;;
+    --watch-bin ) opt_watch_bin="$2"; shift 2 ;;
+    --watch-opts )
+      optdata__watch_opts__was_set=1
+      [[ $2 =~ ^(:{0,2})(.*)$ ]]
+      case ${BASH_REMATCH[1]} in
+        : ) optdata__watch_opts__append= ;;
+        :: ) optdata__watch_opts__append=1 ;;
+      esac
+      declare -- arg
+      while read -rd '' arg; do
+        optdata__watch_opts__cli+=("$arg")
+      done < <(xargs printf '%s\0' < <(printf '%s' "${BASH_REMATCH[2]}"))
+      unset -v arg
+      shift 2
+    ;;
+    -x )
+      opt_exec=1 
+      (( optdata__exec__n = (optdata__exec__n < 0 ? 0 : optdata__exec__n), optdata__exec__n++))
+      case $optdata__exec__n in
+        1 ) optdata__exec_print__flip= ;;
+        2 ) optdata__exec_print__flip=1 ;;
+      esac
+      shift
+    ;;
+    -X )
+      opt_exec= 
+      (( optdata__exec__n = (optdata__exec__n > 0 ? 0 : optdata__exec__n), optdata__exec__n--))
+      case $optdata__exec__n in
+        -1 ) optdata__exec_print__flip= ;;
+        -2 ) optdata__exec_print__flip=1 ;;
+      esac
+      shift
+    ;;
+    --exec ) opt_exec=1; shift ;;
+    --no-exec ) opt_exec=; shift ;;
+    --exec-print ) opt_exec_print="${2:-always}"; shift 2 ;;
+    --exec-no-print ) opt_exec_print='never'; shift ;;
+    -v | --exec-verbose ) opt_exec_verbose=1; shift ;;
+    -V | --exec-no-verbose ) opt_exec_verbose=; shift ;;
+    -y )
+      ((optdata__exec_risky__n++))
+      case $optdata__exec_risky__n in
+        1 ) opt_exec_risky='ask' ;;
+        2 ) opt_exec_risky='yes' ;;
+      esac
+      shift
+    ;;
+    --exec-risky ) opt_exec_risky="${2:-ask}"; shift 2 ;;
+    -Y | --exec-no-risky ) opt_exec_risky='no'; shift ;;
+    --color ) opt_color="${2:-auto}"; shift 2 ;;
+    --no-color ) opt_color='never'; shift ;;
+    --help ) { test -f "$script_dir/man/man1/$script_name.1" || test -f "$(man -w "$script_name" &> /dev/null)"; } && man "$_"; exit ;;
+    --version ) printf '%s\n' "$version"; exit ;;
+    --config ) optc="${optc:-$1}" opt_config="${2:-auto}"; shift 2 ;;
+    --no-config ) optc="${optc:-$1}" opt_config='none'; shift ;;
+    -- ) shift; break ;;
+    * ) printf '%s\n' "Internal error: unable to parse argument ${1@Q}." >&2; exit 1 ;;
+  esac
+done
+
+unset -v modeswdata__command__n
+unset -v optdata__exec__n
+unset -v optdata__exec_risky__n
+
+case $opt_color in
+  always ) opt_color=1 ;;
+  auto ) [[ -t 1 ]] && opt_color=1 || opt_color= ;;
+  never ) opt_color= ;;
+  * ) printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid argument to ${opt_color:+$'\x1b[1m'}--color${opt_color:+$'\x1b[22m'} or invalid configuration. ${opt_color:+$'\x1b[1m'}opt_color${opt_color:+$'\x1b[22m'} is set to ${opt_color@Q}. Allowed values are 'always', ['auto'], 'never'.${opt_color:+$'\x1b[0m'}" >&2; exit 1 ;;
+esac
+
+declare -- optdata__exec__dry_run=
+if [[ ! $opt_exec ]]; then optdata__exec__dry_run=1; fi
+
+declare -- optdata__exec_print__inhibit_obtrusive=
+
+case $opt_exec_print in
+  always ) opt_exec_print=1 ;;
+  almost-always ) optdata__exec_print__inhibit_obtrusive=1 opt_exec_print=1 ;;
+  auto ) [[ ! $opt_exec ]] && opt_exec_print=1 || opt_exec_print= ;;
+  never ) opt_exec_print= ;;
+  * ) printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid argument to ${opt_color:+$'\x1b[1m'}--exec-print${opt_color:+$'\x1b[22m'} or invalid configuration. ${opt_color:+$'\x1b[1m'}opt_exec_print${opt_color:+$'\x1b[22m'} is set to ${opt_exec_print@Q}. Allowed values are ['always'], 'almost-always', 'auto', 'never'.${opt_color:+$'\x1b[0m'}" >&2; had_errors=1 ;;
+esac
+
+case $opt_exec_risky in
+  yes | ask | no ) ;;
+  * ) printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid argument to ${opt_color:+$'\x1b[1m'}--exec-risky${opt_color:+$'\x1b[22m'} or invalid configuration. ${opt_color:+$'\x1b[1m'}opt_exec_risky${opt_color:+$'\x1b[22m'} is set to ${opt_exec_risky@Q}. Allowed values are 'yes', ['ask'], 'no'.${opt_color:+$'\x1b[0m'}" >&2; had_errors=1 ;;
+esac
+
+function optdata__exec__run {
+  local opt_inhibit=
+  local -- OPTIND OPTARG OPTERR arg
+  while getopts ':i' arg; do
+    case $arg in
+      i ) opt_inhibit=1 ;;
+      : ) printf '%s\n' "[${script_name:+$script_name:}$FUNCNAME] Missing argument to -$OPTARG." >&2; return 1 ;;
+      ? ) printf '%s\n' "[${script_name:+$script_name:}$FUNCNAME] Invalid option: -$OPTARG." >&2; return 1 ;;
+    esac
+  done
+  shift "$(( OPTIND - 1 ))"
+  unset -v OPTIND OPTARG OPTERR arg
+  if [[ $opt_exec_print && \
+        ( $opt_inhibit && \
+          ( $opt_exec && $optdata__exec_print__inhibit_obtrusive ) ) ]]; then
+    opt_exec_print=
+  fi
+  if [[ $optdata__exec_print__flip ]]; then
+    case $opt_exec_print in
+      1 ) opt_exec_print= ;;
+      '' ) opt_exec_print=1 ;;
+    esac
+  fi
+  if [[ $opt_exec_print ]]; then
+    printf '%s' "${optdata__exec__dry_run:+(dry run) }${opt_color:+$'\x1b[1m'}$ ${opt_color:+$'\x1b[0m'}"
+    print_quot "$@" |
+      bat_or_cat \
+        --no-config \
+        --style=plain \
+        --paging=never \
+        --language=bash \
+        --color=never ${opt_color:+--color=always}
+  fi
+  if [[ $opt_exec ]]; then "$@"; fi
+}
+
+function optdata__exec_risky__check {
+
+  local -- mode='1'
+  local -- opt_invert=
+
+  local -- OPTIND OPTARG OPTERR arg
+  while getopts ':12i' arg; do
+    case $arg in
+      1 ) mode='1' ;;
+      2 ) mode='2' ;;
+      i ) opt_invert=1 ;;
+      : ) printf '%s\n' "[${script_name:+$script_name:}$FUNCNAME] Missing argument to -$OPTARG." >&2; return 1 ;;
+      ? ) printf '%s\n' "[${script_name:+$script_name:}$FUNCNAME] Invalid option: -$OPTARG." >&2; return 1 ;;
+    esac
+  done
+  shift "$(( OPTIND - 1 ))"
+  unset -v OPTIND OPTARG OPTERR arg
+
+  local -a source=('') dest=('') has_fail=()
+
+  case $mode in
+
+    1 )
+      has_fail=
+      local -- i
+      for (( i = 1; i <= $#; i++ )); do
+        source[$i]="${!i}"
+        dest[$i]="${!i}"
+        if [[ -f ${dest[$i]} ]]; then
+          has_fail=1
+          has_fail[$i]=1
+        else
+          has_fail[$i]=
+        fi
+      done
+      unset -v i
+    ;;
+
+    2 ) 
+      if [[ $# -eq 2 && -f $2 ]]; then
+        has_fail=
+        source[1]="$1"
+        dest[1]="$2"
+        if [[ -f ${dest[1]} ]]; then
+          has_fail=1
+          has_fail[1]=1
+        else
+          has_fail[1]=
+        fi
+      elif [[ $# -ge 2 && -d ${!#} ]]; then
+        has_fail=
+        local -- i
+        for (( i = 1; i < $#; i++ )); do
+          source[$i]="${!i}"
+          dest[$i]="${!#}/${!i##*/}"
+          if [[ -f ${dest[$i]} ]]; then
+            has_fail=1
+            has_fail[$i]=1
+          else
+            has_fail[$i]=
+          fi
+        done
+        unset -v i
+      fi
+    ;;
+
+  esac
+
+  if [[ ! $opt_invert && $has_fail ]]; then
+    local -- i
+    for (( i = 1; i <= ${#dest[@]}; i++ )); do
+      if [[ ${has_fail[$i]} ]]; then
+        printf '%s\n' "${dest[$i]}"
+      fi
+    done
+    unset -v i
+    return 1
+  elif [[ $opt_invert && ! $has_fail ]]; then
+    local -- i
+    for (( i = 1; i <= ${#dest[@]}; i++ )); do
+      if [[ ! ${has_fail[$i]} ]]; then
+        printf '%s\n' "${dest[$i]}"
+      fi
+    done
+    unset -v i
+    return 1
+  fi
+
+}
+
+function optdata__config__run {
+
+  if [[ $# -eq 0 ]]; then set -- "$config_file"; fi
+
+  function optdata__config__edit {
+    optdata__exec__run -i -- "${VISUAL:-${EDITOR:-nano}}" -- "$1"
+  }
+
+  function optdata__config__generate {
+    local -- sed_script
+		IFS= read -rd '' sed_script <<- 'EOF'
+			/^\s*#\s+---\s+BEGIN\s+config\s+---\s*$/ {
+			  n
+			  :a /^\s*#\s+---\s+END\s+config\s+---\s*$/ ! { H; n; b a }
+			  z
+			  x
+			  s/^[\t\n\v\f\r ]*//
+			  s/[\t\n\v\f\r ]*$//
+			  s/[\t\v\f\r ]+$//gm
+			  {
+			    s/'/'\\''/g
+			    s/.*/printf '%s' '&' | sed -E '\/=\\($\/ { n; :a \/^\\)$\/ ! { s\/^\/#\/; n; b a } }'/e
+			  }
+			  s/^[^#]/#&/gm
+			  p
+			  q
+			}
+			$ q 1
+		EOF
+    if [[ ! -d ${1%/*} ]]; then
+      optdata__exec__run -- mkdir -p${opt_exec_verbose:+v} -- "${1%/*}"
+    fi
+    printf '%s\n' "${optdata__exec__dry_run:+(dry run) }Generating configuration file ${1@Q}."
+    local -- output
+    if [[ $opt_exec ]]; then output="$1"; else output='/dev/null'; fi
+    sed -En -- "$sed_script" "$script_source" | 
+      tee -- "$output" |
+      bat_or_cat \
+        --no-config \
+        --style=numbers \
+        --paging=never \
+        --language=bash \
+        --color=never ${opt_color:+--color=always} &&
+        printf '%s\n' "${optdata__exec__dry_run:+(dry run) }Configuration file ${1@Q} successfully generated."
+  }
+
+  case $opt_config in
+    auto )
+      if [[ -f $1 ]]; then
+        optdata__config__edit "$1"; exit
+      else
+        while read -ep "Configuration file ${1@Q} does not exist. Would you like to generate it? ${optdata__exec__dry_run:+(dry run) }[Y/n] "; do
+          case $REPLY in
+            [Yy] | '' ) optdata__config__generate "$1"; break ;;
+            [Nn] ) exit 1 ;;
+          esac
+        done
+        while read -ep "Would you like to open it in a text editor? ${optdata__exec__dry_run:+(dry run) }[Y/n] "; do
+          case $REPLY in
+            [Yy] | '' ) optdata__config__edit "$1"; exit ;;
+            [Nn] ) exit 1 ;;
+          esac
+        done
+      fi
+    ;;
+    edit )
+      if [[ -f $1 ]]; then
+        optdata__config__edit "$1"; exit
+      else
+        printf '%s\n' "No configuration file ${1@Q} to edit. Use ‘--config=generate’ to generate one." >&2; exit 1
+      fi
+    ;;
+    generate )
+      if [[ -f $1 ]]; then
+        while read -ep "Configuration file ${1@Q} already exists. Would you like to overwrite it? ${optdata__exec__dry_run:+(dry run) }[y/N] "; do
+          case $REPLY in
+            [Yy] ) optdata__config__generate "$1"; exit ;;
+            [Nn] | '' ) exit 1 ;;
+          esac
+        done
+      else
+        optdata__config__generate "$1"; exit
+      fi
+    ;;
+    remove )
+      if [[ -f $1 ]]; then
+        while read -ep "Configuration file ${1@Q} will be deleted. Are you sure you want to proceed? ${optdata__exec__dry_run:+(dry run) }[y/N] "; do
+          case $REPLY in
+            [Yy] )
+              optdata__exec__run -- rm -v -- "$1"
+              (shopt -s dotglob nullglob; set -- "${1%/*}/"*; [[ $# -eq 0 ]]) &&
+                optdata__exec__run -- rmdir -v -- "${1%/*}"
+              exit
+            ;;
+            [Nn] | '' ) exit 1 ;;
+          esac
+        done
+      else
+        printf '%s\n' "Configuration file ${1@Q} does not exist." >&2; exit 1
+      fi
+    ;;
+  esac
+
+}
+
+case $optc in
+  --config | --no-config )
+    case $opt_config in
+      auto | edit | generate | remove ) optdata__config__run ;;
+      none ) ;;
+      * ) printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid argument to ${opt_color:+$'\x1b[1m'}--config${opt_color:+$'\x1b[22m'}: ${opt_config@Q}. Allowed values are ['auto'], 'edit', 'generate', 'remove', 'none'.${opt_color:+$'\x1b[0m'}" >&2; exit 1 ;;
+    esac
+  ;;
+esac
+
+declare -- had_errors=
+
+case ${conf_default_submode[list]} in
+  list | menu ) ;;
+  * ) printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid configuration. ${opt_color:+$'\x1b[1m'}conf_default_submode[list]${opt_color:+$'\x1b[22m'} is set to ${conf_default_submode[list]@Q}. Allowed values are 'list', 'menu'.${opt_color:+$'\x1b[0m'}" >&2; had_errors=1 ;;
+esac
+
+case ${conf_default_submode[command]} in
+  arguments | string ) ;;
+  * ) printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid configuration. ${opt_color:+$'\x1b[1m'}conf_default_submode[command]${opt_color:+$'\x1b[22m'} is set to ${conf_default_submode[command]@Q}. Allowed values are 'arguments', 'string'.${opt_color:+$'\x1b[0m'}" >&2; had_errors=1 ;;
+esac
+
+case ${conf_default_submode[install]} in
+  move | copy | link ) ;;
+  * ) printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid configuration. ${opt_color:+$'\x1b[1m'}conf_default_submode[install]${opt_color:+$'\x1b[22m'} is set to ${conf_default_submode[install]@Q}. Allowed values are 'move', 'copy', 'link'.${opt_color:+$'\x1b[0m'}" >&2; had_errors=1 ;;
+esac
+
+case ${conf_default_submode[link]} in
+  symbolic | hard ) ;;
+  * ) printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid configuration. ${opt_color:+$'\x1b[1m'}conf_default_submode[link]${opt_color:+$'\x1b[22m'} is set to ${conf_default_submode[link]@Q}. Allowed values are 'symbolic', 'hard'.${opt_color:+$'\x1b[0m'}" >&2; had_errors=1 ;;
+esac
+
+case ${conf_default_submode[symbolic_link]} in
+  relative | absolute ) ;;
+  * ) printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid configuration. ${opt_color:+$'\x1b[1m'}conf_default_submode[symbolic_link]${opt_color:+$'\x1b[22m'} is set to ${conf_default_submode[symbolic_link]@Q}. Allowed values are 'relative', 'absolute'.${opt_color:+$'\x1b[0m'}" >&2; had_errors=1 ;;
+esac
+
+case $modesw_command in
+  '' ) ;;
+  arguments | string ) mode__command__submode="$modesw_command" ;;
+  * ) printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid argument to ${opt_color:+$'\x1b[1m'}--command${opt_color:+$'\x1b[22m'}: ${modesw_command@Q}. Allowed values are 'arguments', 'string'.${opt_color:+$'\x1b[0m'}" >&2; had_errors=1 ;;
+esac
+
+if [[ $modesw_link ]]; then
+  mapfile -td ',' < <(printf '%s' "$modesw_link,")
+  declare -- word
+  for word in "${MAPFILE[@]}"; do
+    case $word in
+      symbolic | hard ) mode__link__submode="$word" ;;
+      relative | absolute ) mode__symbolic_link__submode="$word" ;;
+      '' ) ;;
+      * ) printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid word ${word@Q} in argument to ${opt_color:+$'\x1b[1m'}--link${opt_color:+$'\x1b[22m'}: ${modesw_link@Q}. Allowed words are 'symbolic', 'hard', 'relative', 'absolute'.${opt_color:+$'\x1b[0m'}" >&2; had_errors=1 ;;
+    esac
+  done
+  unset -v word
+fi
+
+unset -v modesw_command
+unset -v modesw_link
+
+if [[ $opt_watch ]]; then
+  case $opt_watch_bin in
+    '' )
+      if type -P watch &> /dev/null; then
+        opt_watch_bin="$_"
+      else
+        printf '%s\n' "${opt_color:+$'\x1b[33m'}[$script_name] ${opt_color:+$'\x1b[1m'}watch${opt_color:+$'\x1b[22m'} not found.${opt_color:+$'\x1b[0m'}" >&2
+        opt_watch=
+      fi
+    ;;
+    */* )
+      if [[ ! -e $opt_watch_bin ]]; then
+        printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Bad argument to ${opt_color:+$'\x1b[1m'}--watch-bin${opt_color:+$'\x1b[22m'} or bad configuration. ${opt_color:+$'\x1b[1m'}opt_watch_bin${opt_color:+$'\x1b[22m'} is set to ${opt_watch_bin@Q}. File ${opt_watch_bin@Q} does not exist.${opt_color:+$'\x1b[0m'}" >&2
+        had_errors=1
+      elif [[ ! -f $opt_watch_bin ]]; then
+        printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Bad argument to ${opt_color:+$'\x1b[1m'}--watch-bin${opt_color:+$'\x1b[22m'} or bad configuration. ${opt_color:+$'\x1b[1m'}opt_watch_bin${opt_color:+$'\x1b[22m'} is set to ${opt_watch_bin@Q}. File ${opt_watch_bin@Q} is not a regular file, but a $(get_unix_file_type "$opt_watch_bin").${opt_color:+$'\x1b[0m'}" >&2
+        had_errors=1
+      fi
+    ;;
+    * )
+      if type -P "$opt_watch_bin" &> /dev/null; then
+        opt_watch_bin="$_"
+      else
+        printf '%s\n' "${opt_color:+$'\x1b[33m'}[$script_name] ${opt_color:+$'\x1b[1m'}watch${opt_color:+$'\x1b[22m'} not found.${opt_color:+$'\x1b[0m'}" >&2
+        opt_watch=
+      fi
+    ;;
+  esac
+fi
+
+if [[ $had_errors ]]; then exit 1; fi
+
+declare -A watchtower_scripts
+
+declare -- path
+for path in "$watchtower_scripts_dir/"*'.bash'; do
+  declare -- name
+  name="${path##*/}" name="${name%.bash}"
+  watchtower_scripts[$name]="$path"
+  unset -v name
+done
+unset -v path
+
+if [[ ${modegrp_listable[$mode]} ]]; then
+  if [[ $# -eq 0 ]]; then modegrp__listable__submode='list'; fi
+fi
+
+declare -- modedata__list__smenu_pin_mode=
+
+if [[ $mode == 'remove' || \
+      $mode == 'edit' && $mode__edit__submode == 'default' ]]; then
+  modedata__list__smenu_pin_mode=1
+fi
+
+if [[ $modegrp__listable__submode == 'list' ]]; then
+  if [[ ${#watchtower_scripts[@]} -eq 0 ]]; then
+    printf '%s\n' 'No scripts are installed.'
+    exit
+  fi
+  if [[ $mode__list__submode == 'menu' ]] && type -P smenu &> /dev/null; then
+    declare -a REPLY
+    IFS=$'\t' read -rd '' -a REPLY < <(
+      declare -- name
+      while read -rd '' name; do
+        printf '%s\n' "${name@Q}"
+      done < <(printf '%s\0' "${!watchtower_scripts[@]}" | sort -z) | smenu -d ${modedata__list__smenu_pin_mode:+-T $'\t'}
+      unset -v name
+    )
+    if [[ $REPLY ]]; then set -- "${REPLY[@]}"; else exit 0; fi
+    unset -v REPLY
+  else
+    declare -- name
+    while read -rd '' name; do
+      printf '%s\n' "$name"
+    done < <(printf '%s\0' "${!watchtower_scripts[@]}" | sort -z) | column
+    unset -v name
+    exit
+  fi
+fi
+
+if [[ $mode == @(command|install) ]]; then
+  if [[ $# -eq 0 ]]; then
+    printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Too few arguments.${opt_color:+$'\x1b[0m'}" >&2
+    exit 1
+  fi
+fi
+
+unset -v modedata__list__smenu_pin_mode
+
+declare -a nonopts_orig=('' "$@")
+
+declare -- had_errors=
+
+if [[ $mode == 'default' ]]; then
+
+  if [[ $1 != */* ]]; then
+    if test "${watchtower_scripts[$1]}"; then
+      set -- "$_" "${@:2}"
+    else
+      printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] No script named ${1@Q}.${opt_color:+$'\x1b[0m'}" >&2
+      had_errors=1
+    fi
+  else
+    if [[ ! -e $1 ]]; then
+      printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] File ${1@Q} does not exist.${opt_color:+$'\x1b[0m'}" >&2
+      had_errors=1
+    elif [[ ! -f $1 ]]; then
+      printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] File ${1@Q} is not a regular file, but a $(get_unix_file_type "$1").${opt_color:+$'\x1b[0m'}" >&2
+      had_errors=1
+    fi
+  fi
+
+elif [[ $mode == 'install' ]]; then
+
+  declare -- file
+  for file; do
+    if [[ ! -e $file ]]; then
+      printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] File ${file@Q} does not exist.${opt_color:+$'\x1b[0m'}" >&2
+      had_errors=1
+    elif [[ ! -f $file ]]; then
+      printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] File ${file@Q} is not a regular file, but a $(get_unix_file_type "$file").${opt_color:+$'\x1b[0m'}" >&2
+      had_errors=1
+    fi
+  done
+  unset -v file
+
+  if [[ $mode__install__submode == 'link' && \
+        $mode__link__submode == 'symbolic' && \
+        $mode__symbolic_link__submode == 'absolute' ]]; then
+    mapfile -td '' < <(realpath -z --no-symlinks -- "$@")
+    set -- "${MAPFILE[@]}"
+  fi
+
+elif [[ $mode == 'edit' && $mode__edit__submode == 'default' ]]; then
+
+  declare -- nonopt
+  for nonopt; do
+    if [[ $nonopt == */* ]]; then
+      printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid script name: ${nonopt@Q}. A script name may not contain forward slashes ('/').${opt_color:+$'\x1b[0m'}" >&2
+      had_errors=1
+    fi
+  done
+  unset -v nonopt
+
+  declare -a nonopts=("$@")
+  declare -- i
+  for (( i = 0; i < ${#nonopts[@]}; i++ )); do
+    if test "${watchtower_scripts[${nonopts[$i]}]}"; then
+      nonopts[$i]="$_"
+    else
+      nonopts[$i]="$watchtower_scripts_dir/${nonopts[$i]}.bash"
+    fi
+  done
+  unset -v i
+  set -- "${nonopts[@]}"
+  unset -v nonopts
+
+elif [[ $mode == 'edit' && $mode__edit__submode == 'copy' ]]; then
+
+  if [[ $# -gt 2 ]]; then
+    printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Too many arguments.${opt_color:+$'\x1b[0m'}" >&2
+    had_errors=1
+  else
+    if [[ $# -eq 1 ]]; then
+      while true; do
+        read -ep 'Enter new name: '
+        if [[ $REPLY == */* ]]; then
+          printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid script name: ${REPLY@Q}. A script name may not contain forward slashes ('/').${opt_color:+$'\x1b[0m'}" >&2
+        else
+          break
+        fi
+      done
+      set -- "$1" "$REPLY"
+    else
+      if [[ $2 == */* ]]; then
+        printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid script name: ${2@Q}. A script name may not contain forward slashes ('/').${opt_color:+$'\x1b[0m'}" >&2
+        had_errors=1
+      fi
+    fi
+    set -- "$1" "$watchtower_scripts_dir/$2.bash"
+  fi
+
+  if [[ $1 != */* ]]; then
+    if test "${watchtower_scripts[$1]}"; then
+      set -- "$_" "${@:2}"
+    else
+      printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] No script named ${1@Q}.${opt_color:+$'\x1b[0m'}" >&2
+      had_errors=1
+    fi
+  else
+    if [[ ! -e $1 ]]; then
+      printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] File ${1@Q} does not exist.${opt_color:+$'\x1b[0m'}" >&2
+      had_errors=1
+    elif [[ ! -f $1 ]]; then
+      printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] File ${1@Q} is not a regular file, but a $(get_unix_file_type "$1").${opt_color:+$'\x1b[0m'}" >&2
+      had_errors=1
+    fi
+  fi
+
+elif [[ $mode == 'rename' ]]; then
+
+  if [[ $# -gt 2 ]]; then
+    printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Too many arguments.${opt_color:+$'\x1b[0m'}" >&2
+    had_errors=1
+  else
+    if [[ $# -eq 1 ]]; then
+      while true; do
+        read -ep 'Enter new name: '
+        if [[ $REPLY == */* ]]; then
+          printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid script name: ${REPLY@Q}. A script name may not contain forward slashes ('/').${opt_color:+$'\x1b[0m'}" >&2
+        else
+          break
+        fi
+      done
+      set -- "$1" "$REPLY"
+    fi
+    declare -- nonopt
+    for nonopt; do
+      if [[ $nonopt == */* ]]; then
+        printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid script name: ${nonopt@Q}. A script name may not contain forward slashes ('/').${opt_color:+$'\x1b[0m'}" >&2
+        had_errors=1
+      fi
+    done
+    unset -v nonopt
+    set -- "$1" "$watchtower_scripts_dir/$2.bash"
+  fi
+
+  if test "${watchtower_scripts[$1]}"; then
+    set -- "$_" "${@:2}"
+  else
+    printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] No script named ${1@Q}.${opt_color:+$'\x1b[0m'}" >&2
+    had_errors=1
+  fi
+
+elif [[ $mode == 'remove' ]]; then
+
+  declare -a nonopts=("$@")
+  declare -- i
+  for (( i = 0; i < ${#nonopts[@]}; i++ )); do
+    if test "${watchtower_scripts[${nonopts[$i]}]}"; then
+      nonopts[$i]="$_"
+    else
+      printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] No script named ${nonopts[$i]@Q}.${opt_color:+$'\x1b[0m'}" >&2
+      had_errors=1
+    fi
+  done
+  unset -v i
+  set -- "${nonopts[@]}"
+  unset -v nonopts
+
+fi
+
+if [[ $had_errors ]]; then exit 1; fi
+
+if [[ $mode == @(default|command) ]]; then
+
+  case $mode in
+    default )
+      if [[ ${conf_watch_opts[${nonopts_orig[1]}]} ]]; then
+        opt_watch_opts=()
+        declare -- arg
+        while read -rd '' arg; do
+          opt_watch_opts+=("$arg")
+        done < <(xargs printf '%s\0' < <(printf '%s' "${conf_watch_opts[${nonopts_orig[1]}]}"))
+        unset -v arg
+      fi
+    ;;
+  esac
+
+  if [[ $optdata__watch_opts__was_set ]]; then
+    if [[ ! $optdata__watch_opts__append ]]; then
+      opt_watch_opts=("${optdata__watch_opts__cli[@]}")
+    else
+      opt_watch_opts+=("${optdata__watch_opts__cli[@]}")
+    fi
+  fi
+
+fi
+
+case $mode in
+
+  default )
+    declare -a cmd=(bash -c -- "(:); declare -A WATCHTOWER_SCRIPT[watch]=$opt_watch WATCHTOWER_SCRIPT[color]=$opt_color; source ${1@Q}" bash "${@:2}")
+    if [[ $opt_watch ]]; then
+      optdata__exec__run -i -- "$opt_watch_bin" -x "${opt_watch_opts[@]}" -- "${cmd[@]}"
+    else
+      optdata__exec__run -i -- "${cmd[@]}"
+    fi
+    unset -v cmd
+  ;;
+
+  command )
+    case $mode__command__submode in
+      arguments )
+        if [[ $opt_watch ]]; then
+          optdata__exec__run -i -- "$opt_watch_bin" -x "${opt_watch_opts[@]}" -- "$@"
+        else
+          optdata__exec__run -i -- "$@"
+        fi
+      ;;
+      string )
+        if [[ $opt_watch ]]; then
+          optdata__exec__run -i -- "$opt_watch_bin" -x "${opt_watch_opts[@]}" -- bash -c -- "$1" "${@:2}"
+        else
+          optdata__exec__run -i -- bash -c -- "$1" "${@:2}"
+        fi
+      ;;
+    esac
+  ;;
+
+  install )
+    declare -- check_result
+    if ! check_result=$(optdata__exec_risky__check -2 -- "$@" "$watchtower_scripts_dir"); then
+      case $opt_exec_risky in
+        ask )
+          while read -ep "$( 
+            printf '%s\n' "The following files will be overwritten:"
+            printf '%s\n' "$check_result"
+            printf '%s' 'Are you sure that you want to proceed? [y/N] '
+          )"; do
+            case $REPLY in
+              [Yy] ) break ;;
+              '' | [Nn] ) exit; break ;;
+              * ) ;;
+            esac
+          done
+        ;;
+        no ) 
+          printf '%s\n' "The following files already exist:"
+          printf '%s\n' "$check_result"
+          exit 1
+        ;;
+      esac
+    fi
+    if [[ ! -d $watchtower_scripts_dir ]]; then
+      optdata__exec__run -- mkdir -p${opt_exec_verbose:+v} -- "$watchtower_scripts_dir"
+    fi
+    case $mode__install__submode in
+      move )
+        optdata__exec__run -- mv ${opt_exec_verbose:+-v} -- "$@" "$watchtower_scripts_dir"
+      ;;
+      copy )
+        optdata__exec__run -- cp -a${opt_exec_verbose:+v} -- "$@" "$watchtower_scripts_dir"
+      ;;
+      link )
+        case $mode__link__submode in
+          symbolic )
+            case $mode__symbolic_link__submode in
+              relative ) optdata__exec__run -- ln -s${opt_exec_verbose:+v}r${check_result:+f} -- "$@" "$watchtower_scripts_dir" ;;
+              absolute ) optdata__exec__run -- ln -s${opt_exec_verbose:+v}${check_result:+f} -- "$@" "$watchtower_scripts_dir" ;;
+            esac
+          ;;
+          hard )
+            declare -- o=${opt_exec_verbose:+v}${check_result:+f}
+            optdata__exec__run -- ln ${o:+-"$o"} -- "$@" "$watchtower_scripts_dir"
+            unset -v o
+          ;;
+        esac
+      ;;
+    esac
+    unset -v check_result
+  ;;
+
+  edit )
+    case $mode__edit__submode in
+      copy )
+        declare -- check_result
+        if ! check_result=$(optdata__exec_risky__check -2 -- "$1" "$2"); then
+          case $opt_exec_risky in
+            ask )
+              while read -ep "$( 
+                printf '%s\n' "A file with the name ${nonopts_orig[1]@Q} already exists:"
+                printf '%s\n' "$check_result"
+                printf '%s\n' 'Would you like to overwrite it? [y/N] '
+              )"; do
+                case $REPLY in
+                  [Yy] ) break ;;
+                  '' | [Nn] ) exit; break ;;
+                  * ) ;;
+                esac
+              done
+            ;;
+            no ) 
+              printf '%s\n' "A file with the name ${nonopts_orig[1]@Q} already exists:"
+              printf '%s\n' "$check_result"
+              exit 1
+            ;;
+          esac
+        fi
+        unset -v check_result
+        declare -- vim_script="execute 'read' '${1//\'/\'\'}' | 1 d"
+        declare -- editor="${VISUAL:-${EDITOR:-nano}}"
+        case $editor in
+          vim ) optdata__exec__run -i -- "$editor" --not-a-term -c "$vim_script" -- "$2" ;;
+          nvim ) optdata__exec__run -i -- "$editor" -c "$vim_script" -- "$2" ;;
+          * )
+            optdata__exec__run -- cp -a${opt_exec_verbose:+v} -- "$1" "$2"
+            optdata__exec__run -i -- "$editor" -- "$2"
+          ;;
+        esac
+        unset -v editor
+        unset -v vim_script
+      ;;
+      default )
+        declare -- editor="${VISUAL:-${EDITOR:-nano}}"
+        case $editor in
+          vim ) optdata__exec__run -i -- "$editor" --not-a-term -p -- "$@" ;;
+          nvim ) optdata__exec__run -i -- "$editor" -p -- "$@" ;;
+          * ) optdata__exec__run -i -- "$editor" -- "$@" ;;
+        esac
+        unset -v editor
+      ;;
+    esac
+  ;;
+
+  rename )
+    declare -- check_result
+    if ! check_result=$(optdata__exec_risky__check -2 -- "$1" "$2"); then
+      case $opt_exec_risky in
+        ask )
+          while read -ep "$( 
+            printf '%s\n' "A file with the name ${nonopts_orig[1]@Q} already exists:"
+            printf '%s\n' "$check_result"
+            printf '%s\n' 'Would you like to overwrite it? [y/N] '
+          )"; do
+            case $REPLY in
+              [Yy] ) break ;;
+              '' | [Nn] ) exit; break ;;
+              * ) ;;
+            esac
+          done
+        ;;
+        no )
+          printf '%s\n' "A file with the name ${nonopts_orig[1]@Q} already exists:"
+          printf '%s\n' "$check_result"
+          exit 1
+        ;;
+      esac
+    fi
+    unset -v check_result
+    if [[ $# -gt 0 ]]; then
+      optdata__exec__run -- mv ${opt_exec_verbose:+-v} -- "$1" "$2"
+    fi
+  ;;
+
+  remove )
+    case $opt_exec_risky in
+      ask )
+        while read -ep "$( 
+          printf '%s\n' 'The following files will be deleted:'
+          printf '%s\n' "$@"
+          printf '%s\n' 'Are you sure that you want to proceed? [y/N] '
+        )"; do
+          case $REPLY in
+            [Yy] ) break ;;
+            '' | [Nn] ) exit; break ;;
+            * ) ;;
+          esac
+        done
+      ;;
+      no )
+        printf '%s\n' 'The following files would be deleted:'
+        printf '%s\n' "$@"
+        exit 1
+      ;;
+    esac
+    optdata__exec__run -- rm ${opt_exec_verbose:+-v} -- "$@"
+  ;;
+
+esac
+
+# vim: set list listchars=tab\:␉· tabstop=2 :

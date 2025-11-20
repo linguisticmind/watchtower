@@ -1,0 +1,791 @@
+.TH WATCHTOWER 1 2025-11-20 "WATCHTOWER 0.1.0"
+.
+.SH NAME
+.P
+watchtower \- an extension to the watch command
+.
+.SH SYNOPSIS
+.
+.SY watchtower
+[--list|--menu]
+.YS
+.
+.SY watchtower
+<script_name|script_file> [<script_argument> ...]
+.YS
+.
+.SY watchtower
+--command=arguments <command_argument> ...
+.YS
+.
+.SY watchtower
+--command=string <command_string> <command_string_argument> ...
+.YS
+.
+.SY watchtower
+--install [--move|--copy|--link] <script_file> ...
+.YS
+.
+.SY watchtower
+--edit [--list|--menu] [--copy]
+.YS
+.
+.SY watchtower
+--edit <script_name|new_script_name> ...
+.YS
+.
+.SY watchtower
+--edit --copy <script_name|script_file> [<new_script_name>]
+.YS
+.
+.SY watchtower
+--rename [--list|--menu]
+.YS
+.
+.SY watchtower
+--rename <old_script_name> [<new_script_name>]
+.YS
+.
+.SY watchtower
+--remove [--list|--menu]
+.YS
+.
+.SY watchtower
+--remove <script_name> ...
+.YS
+.
+.SH DESCRIPTION
+.P
+\%\fBwatchtower\fR augments the functionality of the \fBwatch\fR command. It offers a convenient interface to run and manage watch tasks in form of scripts providing easy access to common operations.
+.
+.SH MODES
+.P
+Modes are subsets of functionality that either run automatically under certain conditions, or are triggered by passing special option arguments called mode switches. Mode switches are described in this section. See OPTIONS for information on the rest of the option arguments. See NOTES for additional information on command line option usage.
+.TP
+\%default
+Run a \%\fBwatchtower\fR script.
+.IP
+If no non-option arguments are passed, the list submode is entered. Otherwise, the action submode is entered.
+.
+.RS
+.TP
+\%list
+List installed scripts. Runs automatically as previously specified, or when an \%\fB--ls,\ --list\f$ or \%\fB--menu\fR mode switch is passed explicitly.
+.IP
+See also \fBconf_default_submode[\fRlist\fB]\fR.
+.RS
+.TP
+.B \%--ls, --list
+List scripts in plain text.
+.
+.TP
+.B \%--menu
+List scripts as an interactive menu.
+.IP
+Requires \fBsmenu\fR to be installed, otherwise falls back on \%\fB--ls,\ --list\fR.
+.IP
+If a selection is made, continues in action mode.
+.RE
+.TP
+\%action
+Run the script.
+.RE
+.
+.TP
+.B \%-c[c], --command\fR[={arguments|string}]
+Run a specified command. See also \fBconf_default_submode[\fRcommand\fB]\fR.
+.
+.RS
+.TP 9
+\%[<default>]
+Either 'arguments' or 'string' depending on the value of \%\fBconf_default_submode[command]\fR, which is set to 'arguments' by default.
+.TP
+\%\fB-c\fR\ / \%arguments
+Run a command as passed via positional arguments. See also SYNOPSIS and NON-OPTIONS\~\[->] \%<command_argument>.
+.TP
+\%\fB-cc\fR\ / \%string
+Run a string of Bash code. See also SYNOPSIS and NON-OPTIONS\~\[->] \%<command_string>, \%<command_string_argument>.
+.RE
+.
+.TP
+.B \%--install
+Install a \%\fBwatchtower\fR script. See also \fBconf_default_submode[\fRinstall\fB]\fR.
+.
+.RS
+.TP
+.B \%--mv, --move
+Install scripts by moving them to the scripts directory.
+.
+.TP
+.B \%--cp, --copy
+Install scripts by copying them to the scripts directory.
+.
+.TP
+.B \%--ln, --link\fR[={{symbolic|hard},{relative|absolute}}]
+Install scripts by linking them to the scripts directory. See also \fBconf_default_submode[\fRlink\fB]\fR.
+.
+.RS
+.TP 11
+\%symbolic
+Create symbolic links. See also \fBconf_default_submode[\fRsymbolic_link\fB]\fR.
+.RS
+.TP 11
+\%relative
+Create symbolic links using relative paths.
+.TP
+\%absolute
+Create symbolic links using absolute paths.
+.RE
+.TP
+\%hard
+Create hard links.
+.RE
+.RE
+.
+.TP
+.B \%-e, --edit
+Edit installed scripts, or create and edit a new one.
+.IP
+If no non-option arguments are passed, the list submode is entered. Otherwise, the action submode is entered.
+.
+.RS
+.TP
+\%list
+Same as MODES\~\[->] \%default\~\[->] \%list.
+.IP
+Multiple scripts may be selected by pressing \fBT\fR. (Only applies if no \%\fB--cp,\ --copy\fR mode switch is passed.)
+.TP
+\%action
+Edit selected scripts.
+.RS
+.TP
+\%default
+Edit an installed script, or create a new one from scratch.
+.IP
+If a script name is passed that doesn't match any of the installed scripts, a new file with the corresponding name is open for editing.
+.TP
+.B \%--cp, --copy
+Create a new script by creating a copy of an existing one.
+.IP
+If only one non-option argument is passed, an interactive prompt is shown asking for the new script name.
+.RE
+.RE
+.
+.TP
+.B \%--rename
+Rename an installed script.
+.IP
+If no non-option arguments are passed, the list submode is entered. Otherwise, the action submode is entered.
+.
+.RS
+.TP
+\%list
+Same as MODES\~\[->] \%default\~\[->] \%list.
+.TP
+action
+Rename the script.
+.IP
+If only one non-option argument is passed, an interactive prompt is shown asking for the new script name.
+.RE
+.
+.TP
+.B \%--rm, --remove
+Delete installed scripts.
+.IP
+If no non-option arguments are passed, the list submode is entered. Otherwise, the action submode is entered.
+.
+.RS
+.TP
+\%list
+Same as MODES\~\[->] \%default\~\[->] \%list.
+.IP
+Multiple scripts may be selected by pressing \fBT\fR.
+.TP
+action
+Delete the scripts.
+.RE
+.
+.SH NON-OPTIONS
+.P
+This section describes usage of non-option arguments. See SYNOPSIS and MODES for more information on the conditions under which they are used.
+.
+.TP
+\%<script_name>
+A name of a \%\fBwatchtower\fR script installed in the scripts directory. See also SCRIPTS and FILES\~\[->] "Scripts".
+.IP
+The name of the script is derived by taking the script's filename and dropping the '.bash' extension.
+.
+.TP
+\%<script_file>
+A path to a \%\fBwatchtower\fR script file located anywhere on the user's system.
+.
+.TP
+\%<script_argument>
+A positional argument passed to a \%\fBwatchtower\fR script.
+.
+.TP
+\%<command_argument>
+An argument that constitutes a part of a shell command including the very first argument that refers to the command itself.
+.
+.TP
+\%<command_string>
+A string of Bash code. This is the same \%\fIcommand_string\fR as the one described in \%\fBbash\fR(1) under OPTIONS\~\[->] \%\fB-c\fR.
+.
+.TP
+\%<command_string_argument>
+An argument to Bash's \fIcommand_string\fR. See \%\fBbash\fR(1)\~\[->] OPTIONS\~\[->] \%\fB-c\fR.
+.
+.TP
+\%<old_script_name>
+A name of a \%\fBwatchtower\fR script that is to be renamed.
+.IP
+See also \%<script_name> for the definition of a script name.
+.
+.TP
+\%<new_script_name>
+A new name for a \%\fBwatchtower\fR script that is being renamed, or a name for a new \%\fBwatchtower\fR script created by copying an existing one.
+.IP
+See also \%<script_name> for the definition of a script name.
+.
+.SH OPTIONS
+.P
+This section describes usage of option arguments except for mode switches. See MODES for information on mode switches. See NOTES for additional information on command line option usage.
+.
+.SS General
+.
+.TP
+.B \%--watch
+Use the \fBwatch\fR command in default and command modes. This is the default.
+.
+.TP
+.B \%--no-watch
+Do not use the \fBwatch\fR command.
+.
+.TP
+.B \%--watch-bin\fR=<empty|bin|path>
+A \fBwatch\fR binary to use. The default value is ''.
+.IP
+When set to an empty string (''), looks up 'watch' on \%\fBPATH\fR. When set to a value that does not contain a forward slash ('/'), looks up that value on \%\fBPATH\fR. When set to a value with a forward slash in it, uses that value as the path to the binary.
+.
+.TP
+.B \%--watch-opts\fR=[:[:]]\%<opt_string>
+Options to \%\fBwatch\fR. The default value is described under CONFIGURATION\~\[->] "Command line option equivalents".
+.IP
+See NOTES\~\[->] "Option strings" for the description of the \%<opt_string> format.
+.IP
+See also \fBconf_watch_opts\fR.
+.
+.SS Command execution
+.P
+These options govern behavior around commands that \%\fBwatchtower\fR executes under the hood.
+.
+.TP
+.B \%-x[x],\ --exec
+Execute commands (as opposed to performing a dry run for preview purposes). This is the default.
+.
+.RS
+.TP
+.B \%-x
+Perform the specified behavior of this option.
+.TP
+.B \%-xx
+In addition to performing the specified behavior of this option, flip the decision value of \%\fB--exec-print\fR.
+.RE
+.
+.TP
+.B \%-X[X],\ --no-exec
+Do not execute commands. Perform a dry run.
+.
+.RS
+.TP
+.B \%-X
+Perform the specified behavior of this option.
+.TP
+.B \%-XX
+In addition to performing the specified behavior of this option, flip the decision value of \%\fB--exec-print\fR.
+.RE
+.
+.TP
+.B \%--exec-print\fR[={always|auto|never}]
+Print commands and their arguments as they are being executed.
+.
+.RS
+.TP 9
+[always]
+Always print commands.
+.TP 9
+almost-always
+Print commands except in cases where it would be obtrusive. This is the default.
+.TP
+auto
+Print commands only when performing a dry run (\%\fB--no-exec\fR).
+.TP
+never
+Never print commands.
+.
+.P
+\%\fB-xx\fR and \%\fB-XX\fR flip the decision value of this option. If this option is set to \%'auto', the decision is flipped. If this option is set to \%'always' or \%'never', the outcome is the opposite.
+.RE
+.
+.TP
+.B \%--exec-no-print\fR
+Do not print commands and their arguments as they are being executed. Equivalent to \%\fB--exec-print\fR set to \%'never'.
+.
+.TP
+.B \%-v,\ --exec-verbose
+Execute commands verbosely. This is the default.
+.
+.TP
+.B \%-V,\ --exec-no-verbose
+Execute commands non-verbosely.
+.
+.TP
+.B \%-y[y],\ --exec-risky\fR[={yes|ask|no}]
+Execute commands that merit a user confirmation.
+.
+.RS
+.TP 9
+\%\fB-yy\fR\ / \%yes
+Execute without asking.
+.TP
+\%\fB-y\fR\ / \%[ask]
+Show a confirmation prompt before executing. This is the default.
+.TP
+no
+Do not execute. Only show an informational message explaining the situation.
+.RE
+.
+.TP
+.B \%-Y,\ --exec-no-risky\fR
+Do not execute risky commands. Equivalent to \%\fB-y[y],\ --exec-risky\fR set to \%'never'.
+.
+.SS Other
+.
+.TP
+.B \%--color\fR[={always|auto|never}]
+Colorize the output. The default value is 'auto'.
+.
+.RS
+.TP 9
+\%always
+Always colorize.
+.TP
+\%[auto]
+Colorize if stdout is connected to a terminal.
+.TP
+\%never
+Never colorize.
+.RE
+.
+.TP
+.B \%--no-color
+Disable colorization of the output. Equivalent to \fB\%-c,\ --color\fR set to 'never'.
+.
+.TP
+.B \%--help
+Open the man page.
+.
+.TP
+.B \%--version
+Print version information.
+.
+.TP
+.B \%--config\fR[={auto|edit|generate|remove|none}]
+Perform an action on the configuration file. See also CONFIGURATION and FILES below.
+.
+.RS
+.TP 9
+\%[auto]
+Generate a configuration file if it does not exist. If it does, open it in a text editor.
+.TP
+\%edit
+Open an existing configuration file in a text editor.
+.TP
+\%generate
+Generate a new configuration file.
+.TP
+\%remove
+Delete an existing configuration file. If the configuration directory doesn't have any other files, it is also deleted.
+.TP
+\%none
+Do not use the configuration file. Use the program in its default configuration.
+.RE
+.
+.TP
+.B \%--no-config
+Do not use the configuration file. Use the program in its default configuration. Equivalent to \fB\%--config\fR set to 'none'.
+.
+.SH SCRIPTS
+.P
+\%\fBwatchtower\fR scripts are Bash scripts. A \%\fBwatchtower\fR script file must have a '.bash' filename extension.
+.P
+\%<script_argument>s are passed to \%\fBwatchtower\fR scripts as positional arguments. See SYNOPSIS, \%NON-OPTIONS\~\[->] \%<script_argument>.
+.P
+An associative array \%\fBWATCHTOWER_SCRIPT\fR is made available to all scripts run by \%\fBwatchtower\fR. Its contents are listed below. See also NOTES\~\[->] "Pseudo data types" for explanation of terms "boolean", "string", "number", etc.
+.P
+NOTE: Running a \%\fBwatchtower\fR script with the \fB--exec-print\fR option may help better understand how a script's shell context is constructed:
+.P
+.RS 2
+.EX
+watchtower --no-exec --exec-print <script_name>
+.EE
+.RE
+
+.TP
+.B \%WATCHTOWER_SCRIPT \fI(associative array)
+Data passed along by \%\fBwatchtower\fR to a \%\fBwatchtower\fR script.
+.
+.RS
+.TP 9
+.B \%WATCHTOWER_SCRIPT[\fRwatch\fB]\fR \fI(boolean)
+Represents whether a script is being run through \%\fBwatch\fR or not.
+.IP
+Holds a decision value that comes from parsing \%\fBwatchtower\fR's \%\fB--watch\fR\ /\ \%\fB--no-watch\fR options and/or the corresponding configuration variable.
+.TP 9
+.B \%WATCHTOWER_SCRIPT[\fRcolor\fB]\fR \fI(boolean)
+Represents whether a script is being run with colorization enabled or not.
+.IP
+Holds a decision value that comes from parsing \%\fBwatchtower\fR's \%\fB--color\fR\ /\ \%\fB--no-color\fR options and/or the corresponding configuration variable.
+.RE
+.
+.SH CONFIGURATION
+.P
+A configuration file can be used to change the default behavior of \%\fBwatchtower\fR.
+.P
+That configuration file is a Bash script that can be generated by using the \%\fB--config\fR option. It sets a number of variables that correspond to command line options, and some other parameters that can only be set in the configuration file.
+.
+.P
+See also FILES.
+.
+.SS Command line option equivalents
+.P
+The table below shows how command line options and configuration variables correspond to each other. The command line option on the left sets the variable(s) on the right internally.
+.P
+Special symbols:
+.
+.TP 5
+-
+This option is non-configurable.
+.TP
+"
+This option sets the same variable(s) as the one above.
+.TP
++
+This option is a mode switch. Mode switches don't have equivalent configuration variables. See MODES, CONFIGURATION\~\[->] "Configuration file-only parameters" for information on configuration of modes.
+.P
+See also NOTES\~\[->] "Pseudo data types" for explanation of terms "boolean", "string", "number", etc.
+.P
+.TS
+nokeep;
+lb lb li .
+-c[c], --command\fR[=<value>]	\fR+
+--install	\fR+
+-e, --edit	\fR+
+--rename	\fR+
+--remove	\fR+
+--ls, --list	\fR+
+--menu	\fR+
+--mv, --move	\fR+
+--cp, --copy	\fR+
+--ln, --link\fR[=<value>]	\fR+
+--watch	opt_watch	boolean
+--no-watch	\fR"
+--watch-bin\fR=<value>	opt_watch_bin	string
+--watch-opts\fR[=<value>]	opt_watch_opts	string, array
+	optdata__watch_opts__append	boolean
+-x[x], --exec	opt_exec	string
+-X[X], --no-exec	\fR"
+--exec-print\fR[=<value>]	opt_exec_print	string
+--exec-no-print	\fR"
+-v, --exec-verbose	opt_exec_verbose	string
+-V, --exec-no-verbose	\fR"
+-y[y], --exec-risky\fR[=<value>]	opt_exec_risky	string
+-Y, --exec-no-risky	\fR"
+--color\fR[=<value>]	opt_color	string
+--no-color	\fR"
+--help	\fR-
+--version	\fR-
+--config\fR[=<value>]	\fR-
+--no-config	\fR-
+.TE
+.P
+The usage of the variables listed above should mostly be self-explanatory just from looking at the configuration file and reading the description of the corresponding options in the OPTIONS section. Since both the variables and the options do the exact same thing, the usage information will not be repeated here.
+.P
+Some of the variables from the above table are further described below when there is additional information to be provided.
+.TP
+.B \%opt_watch_opts\fR=\%<opt_string> \fI(string)
+.TQ
+.B \%opt_watch_opts\fR=(<options>) \fI(indexed array)
+Options to \%\fBwatch\fR. The default value is '-ctpn 1'.
+.IP
+See also \fBconf_watch_opts\fR.
+.TP
+.B \%optdata__watch_opts__append\fR \fI(boolean)
+If set to true, append to the existing value of \%\fBopt_watch_opts\fR when \fB--watch-opts\fR is used without any leading colons (':', '::') in its value. The default value is false.
+.IP
+See also NOTES\~\[->] "Option strings".
+.
+.SS Configuration file-only parameters
+.
+.TP
+.B \%conf_default_submode \fI(associative array)
+Submodes that various modes invoke by default.
+.
+.RS
+.TP 9
+.B \%conf_default_submode[\fRlist\fB]\fR=<value> \fI(string)
+The default submode of the list mode. See MODES\~\[->] \%default\~\[->] \%list.
+.RS
+.TP 9
+\%list
+Use the list (plain text) submode.
+.TP
+\%menu
+Use the menu submode. This is the default.
+.RE
+.TP
+.B \%conf_default_submode[\fRcommand\fB]\fR=<value> \fI(string)
+The default submode of the command mode. See MODES\~\[->] \%default\~\[->] \%\fB--command\fR.
+.RS
+.TP 11
+\%arguments
+Use the command arguments submode. This is the default.
+.TP
+\%string
+Use the command string submode.
+.RE
+.TP
+.B \%conf_default_submode[\fRinstall\fB]\fR=<value> \fI(string)
+The default submode of the install mode. See MODES\~\[->] \%default\~\[->] \%\fB--install\fR.
+.RS
+.TP 9
+\%move
+Use the move submode.
+.TP
+\%copy
+Use the copy submode. This is the default.
+.TP
+\%link
+Use the link submode.
+.RE
+.TP
+.B \%conf_default_submode[\fRlink\fB]\fR=<value> \fI(string)
+The default submode of the link mode. See MODES\~\[->] \%default\~\[->] \%\fB--install\fR\~\[->] \%\fB--link\fR.
+.RS
+.TP 9
+\%symbolic
+Use the symbolic link submode. This is the default.
+.TP
+\%hard
+Use the hard link submode.
+.RE
+.TP
+.B \%conf_default_submode[\fRsymbolic_link\fB]\fR=<value> \fI(string)
+The default submode of the symbolic link mode. See MODES\~\[->] \%default\~\[->] \%\fB--install\fR\~\[->] \%\fB--link\fR\~\[->] \%symbolic.
+.RS
+.TP 9
+\%relative
+Use the relative paths submode. This is the default.
+.TP
+\%absolute
+Use the absolute paths submode.
+.RE
+.RE
+.
+.TP
+.B \%conf_watch_opts \fI(associative array)
+Options to \fBwatch\fR. See NOTES\~\[->] "Option strings" for the description of the \%<opt_string> format.
+.RS
+.TP 9
+.B \%conf_watch_opts[\fR<script_name>\fB]\fR=\%<opt_string> \fI(string)
+Options for a specific script. These values override the value of \%\fBopt_watch_opts\fR when a given \%<script_name> is in use. No such values are set by default.
+.IP
+See also NON-OPTIONS\~\[->] \%<script_name>.
+.RE
+.
+.SH EXIT STATUS
+.
+.TP
+0
+Success.
+.TP
+1
+An error occurred.
+.
+.SH ENVIRONMENT
+.
+.TP
+.B \%VISUAL\ / \%EDITOR
+The values of \%\fBVISUAL\fR and \%\fBEDITOR\fR environment variables determine the text editor for editing script files, and when opening configuration files with \%\fB--config\fR.
+.IP
+\%\fBVISUAL\fR is evaluated first. If that is not set, then \%\fBEDITOR\fR is evaluated. If neither is set, \%\fBnano\fR is used.
+.
+.TP
+.B \%XDG_CONFIG_HOME
+Determines the location of the configuration directory. If not set, defaults to \%"$HOME/\:\%.config".
+.
+.
+.SH FILES
+.
+.SS Configuration
+.P
+A configuration file can be used to change the default behavior of \%\fBwatchtower\fR.
+.P
+The configuration file's location is \%"$XDG_CONFIG_HOME/\:\%watchtower/\:\%config.bash".
+.P
+See also CONFIGURATION, OPTIONS\~\[->] \%\fB--config\fR.
+.
+.SS Scripts
+.P
+\%\fBwatchtower\fR scripts are installed to \%"$XDG_CONFIG_HOME/\:\%watchtower/\:\%scripts".
+.P
+See also SCRIPTS, MODES\~\[->] \%\fB--install\fR.
+.
+.SH NOTES
+.
+.SS Options with required and optional arguments
+.P
+Due to a peculiarity of the \%\fBgetopt\fR option parser, there is a slight difference in how option arguments are parsed depending on whether the option argument is optional or not:
+.
+.P
+.TS
+tab(|) nokeep;
+l l l .
+|Short option|Long option
+Required argument|-o <value>|--option <value>
+|-o<value>|--option=<value>
+Optional argument|-o[<value>]|--option[=<value>]
+.TE
+.
+.P
+When an option argument is required, the option and the argument may be passed as two separate command lines arguments (\%\[oq]-o <value>\[cq], \%\[oq]--option <value>\[cq]), or as a single command line argument (\%\[oq]-o[<value>]\[cq], \%\[oq]--option[=<value>]\[cq]).
+.P
+When an option argument is optional, the option and the argument may only be passed as a single command line argument (\%\[oq]-o[<value>]\[cq], \%\[oq]--option[=<value>]\[cq]).
+.P
+In this manual, required and optional option arguments are marked as follows:
+.
+.TP
+.B \%-o,\ --option\fR=<value>
+This option takes a required argument. No square brackets around \%<value>.
+.TP
+.B \%-o,\ --option\fR[=<value>]
+This option takes an optional argument. \%<value> is enclosed in square brackets.
+.
+.SS Option strings\fR (\%<opt_string>)
+.P
+Some options and/or configuration variables may provide the ability to pass an option string to another program. Such values are designated as \%<opt_string> and follow \fBxargs\fR quoting rules:
+.P
+.TP 3
+\[bu]
+Single or double quotes may be used:
+.IP
+.RS 4
+.EX
+\[aq]quoted value'
+"quoted value"
+.EE
+.RE
+.TP 3
+\[bu]
+Backslash has no special meaning inside quotes:
+.IP
+.RS 4
+.EX
+\[aq]literal backslash \\ and some more text'
+"literal backslash \\ and some more text"
+.EE
+.RE
+.TP 3
+\[bu]
+Backslash escapes a quote and itself when used outside quotes:
+.IP
+.RS 4
+.EX
+\[aq]literal single quote '\\'' and some more text'
+"literal double quote "\\"" and some more text"
+\[aq]literal backslash '\\\\' and some more text'
+.EE
+.RE
+.P
+When a command line option provides this functionality, it may also provide the ability to either replace the existing \%<opt_string> value or append to it at user's choice.
+.P
+By "the existing value" we mean either a default value or a value set by the user in a configuration file.
+.P
+In this manual, such command line options are marked as follows:
+.TP
+.B \%--command-opts\fR=[:[:]]\%<opt_string>
+Options to \%\fBcommand\fR.
+.P
+Prepending \%<opt_string> with a single colon (':') replaces the existing value, and prepending it with a double colon ('::') appends to it.
+.P
+Such a command line option may have a corresponding configuration variable (see CONFIGURATION\~\[->] "Command line option equivalents"). For our example option, the variable would most likely be called \%\fBopt_command_opts\fR.
+\".P
+\"\%\fBopt_command_opts\fR may be implemented in such a way that it can be set to an \%<opt_string> value, to an indexed array that takes option arguments directly, or either:
+\".TP
+\".B \%opt_command_opts\fR=<opt_string> \fI(string)
+\"Options to \%\fBcommand\fR.
+\".TP
+\".B \%opt_command_opts\fR=(<options>) \fI(indexed array)
+\"Options to \%\fBcommand\fR.
+\".TP
+\".B \%opt_command_opts\fR=\%<opt_string> \fI(string)
+\".TQ
+\".B \%opt_command_opts\fR=(<options>) \fI(indexed array)
+\"Options to \%\fBcommand\fR.
+.P
+An additional configuration variable may be provided that determines what happens when neither a single colon (':') nor a double colon ('::') is appended to \%<opt_string>. For our example option, that variable would most likely be called \%\fBoptdata__command_opts__append\fR, and would be a \fIboolean\fR value as defined in NOTES\~\[->] "Pseudo data types".
+.TP
+.B \%optdata__command_opts__append\fR \fI(boolean)
+If set to true, append to the existing value of \%\fBopt_command_opts\fR when \fB--command-opts\fR is used without any leading colons (':', '::') in its value.
+.P
+When \%\fBoptdata__command_opts__append\fR is set to true, \%\fB--command-opts\fR will append to the existing value when no colons are prepended to \%<opt_string>, and when set to false, it will replace the existing value.
+\".P
+\"Sometimes, configuration\ file-only parameters that take \%<opt_string>s are also implemented. For example:
+\".TP
+\".B \%conf_command_opts\fR=\%<opt_string> \fI(string)
+\"Options to \%\fBcommand\fR.
+\".P
+\"Any further peculiarities regarding the use of specific command line options and configuration variables that make use of option strings will be noted in the respective sections of this manual.
+.
+.SS Pseudo data types
+.P
+In Bash, there is no strict distinction between strings, integers, booleans, and some other data types, but for the sake of clarity of the intended meaning, the configuration variables are marked in terms of these categories.
+.P
+In the generated configuration file, you will see the values formatted according to the following convention:
+.P
+Strings are quoted while numeric values are not.
+.P
+.RS 2
+.EX
+opt_option='value' # string
+opt_option=17      # integer
+.EE
+.RE
+.P
+Variables intended as booleans are set to the value of 1 to mean true, and to an empty string to mean false:
+.sp
+.RS 2
+.EX
+opt_option=1 # true
+opt_option=  # false
+.EE
+.RE
+.
+.SH AUTHOR
+.P
+Alex Rogers \%<https://github.com/\:\%linguisticmind>
+.
+.SH HOMEPAGE
+.P
+\%<https://github.com/\:\%linguisticmind/\:\%watchtower>
+.
+.SH COPYRIGHT
+.P
+Copyright © 2025 Alex Rogers. License GPLv3+: GNU GPL version 3 or later \%<https://gnu.org/\:\%licenses/\:\%gpl.html>.
+.P
+This is free software: you are free to change and redistribute it. There is NO WARRANTY, to the extent permitted by law.
+.
+.SH SEE ALSO
+\%\fBwatch\fR(1)
+.
+\" vim: set syntax=groff list listchars=tab\:␉· tabstop=40 vartabstop=40,36 :
