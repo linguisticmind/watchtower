@@ -26,7 +26,7 @@
 
 ### Essential
 
-_Essential_ dependencies come preinstalled on Debian Linux. Debian users may safely skip the _essential_ dependencies section. Users of other systems have to make sure that these are installed.
+Essential dependencies come preinstalled on Debian Linux. Debian users may safely skip the essential dependencies section. Users of other systems have to make sure that these are installed.
 
 <details>
 <summary>Click to view</summary>
@@ -75,23 +75,9 @@ _Essential_ dependencies come preinstalled on Debian Linux. Debian users may saf
   
 </details>
 
-<!--
-### Required
-
-_Required_ dependencies must be installed in order for <code>watchtower</code> to work.
-
-<table>
-    <tr>
-        <th>Name</th>
-        <th>Installation</th>
-        <th>Notes</th>
-    </tr>
-</table>
--->
-
 ### Optional
 
-_Optional_ dependencies are not strictly necessary for <code>watchtower</code> to work, however some functionality may be limited if they are not installed.
+Optional dependencies are not strictly necessary for <code>watchtower</code> to work, however some functionality may be limited if they are not installed.
 
 <table>
     <tr>
