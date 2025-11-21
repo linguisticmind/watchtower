@@ -881,7 +881,7 @@ case $mode in
           while read -ep "$( 
             printf '%s\n' "The following files will be overwritten:"
             printf '%s\n' "$check_result"
-            printf '%s' 'Are you sure that you want to proceed? [y/N] '
+            printf '%s' "Are you sure that you want to proceed? ${optdata__exec__dry_run:+(dry run) }[y/N] "
           )"; do
             case $REPLY in
               [Yy] ) break ;;
@@ -936,7 +936,7 @@ case $mode in
               while read -ep "$( 
                 printf '%s\n' "A file with the name ${nonopts_orig[1]@Q} already exists:"
                 printf '%s\n' "$check_result"
-                printf '%s\n' 'Would you like to overwrite it? [y/N] '
+                printf '%s\n' "Would you like to overwrite it? ${optdata__exec__dry_run:+(dry run) }[y/N] "
               )"; do
                 case $REPLY in
                   [Yy] ) break ;;
@@ -986,7 +986,7 @@ case $mode in
           while read -ep "$( 
             printf '%s\n' "A file with the name ${nonopts_orig[1]@Q} already exists:"
             printf '%s\n' "$check_result"
-            printf '%s\n' 'Would you like to overwrite it? [y/N] '
+            printf '%s\n' "Would you like to overwrite it? ${optdata__exec__dry_run:+(dry run) }[y/N] "
           )"; do
             case $REPLY in
               [Yy] ) break ;;
@@ -1014,7 +1014,7 @@ case $mode in
         while read -ep "$( 
           printf '%s\n' 'The following files will be deleted:'
           printf '%s\n' "$@"
-          printf '%s\n' 'Are you sure that you want to proceed? [y/N] '
+          printf '%s\n' "Are you sure that you want to proceed? ${optdata__exec__dry_run:+(dry run) }[y/N] "
         )"; do
           case $REPLY in
             [Yy] ) break ;;
