@@ -2,6 +2,8 @@
 
 `watchtower` augments the functionality of the `watch` command. It offers a convenient interface to run and manage watch tasks in form of scripts providing easy access to common operations.
 
+<a href='https://ko-fi.com/linguisticmind'><img src='https://github.com/linguisticmind/linguisticmind/raw/master/res/kofi/kofi_donate_1.svg' alt='Support me on Ko-fi' height='48'></a>
+
 ## Changelog
 
 <table>
