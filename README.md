@@ -1,6 +1,6 @@
 # watchtower
 
-`watchtower` augments the functionality of the `watch` command. It offers a convenient interface to run and manage watch tasks in form of scripts providing easy access to common operations.
+`watchtower` augments the functionality of the `watch` command. It offers a convenient interface to run and manage watch tasks in the form of scripts providing easy access to common operations.
 
 Video tutorial:
 
@@ -207,8 +207,8 @@ SYNOPSIS
 
 DESCRIPTION
        watchtower  augments the functionality of the watch command. It offers a
-       convenient interface to run and manage watch tasks in  form  of  scripts
-       providing easy access to common operations.
+       convenient interface to run and  manage  watch  tasks  in  the  form  of
+       scripts providing easy access to common operations.
 
 MODES
        Modes  are  subsets of functionality that either run automatically under
