@@ -310,6 +310,8 @@ esac
 
 if [[ $had_errors ]]; then exit 1; fi
 
+unset -v had_errors
+
 function optdata__exec__run {
   local opt_inhibit=
   local -- OPTIND OPTARG OPTERR arg
@@ -654,6 +656,8 @@ fi
 
 if [[ $had_errors ]]; then exit 1; fi
 
+unset -v had_errors
+
 declare -A watchtower_scripts
 
 declare -- path
@@ -875,6 +879,8 @@ elif [[ $mode == 'remove' ]]; then
 fi
 
 if [[ $had_errors ]]; then exit 1; fi
+
+unset -v had_errors
 
 if [[ $mode == @(default|command) ]]; then
 
