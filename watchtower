@@ -499,65 +499,95 @@ function optdata__config__run {
       if [[ -f $1 ]]; then
         optdata__config__edit "$1"; exit
       else
-        while read -ep "Configuration file ${1@Q} does not exist. Would you like to generate it? ${optdata__exec__dry_run:+(dry run) }[Y/n] "; do
-          case $REPLY in
-            [Yy] | '' ) optdata__config__generate "$1"; break ;;
-            [Nn] ) exit 1 ;;
-          esac
-        done
-        while read -ep "Would you like to open it in a text editor? ${optdata__exec__dry_run:+(dry run) }[Y/n] "; do
-          case $REPLY in
-            [Yy] | '' ) optdata__config__edit "$1"; exit ;;
-            [Nn] ) exit 1 ;;
-          esac
-        done
+        case $opt_exec_risky in
+          ask )
+            while read -ep "Configuration file ${1@Q} does not exist. Would you like to generate it? ${optdata__exec__dry_run:+(dry run) }[Y/n] "; do
+              case $REPLY in
+                [Yy] | '' ) break ;;
+                [Nn] ) exit 1 ;;
+              esac
+            done
+          ;;
+        esac
+        optdata__config__generate "$1"
+        case $opt_exec_risky in
+          ask )
+            while read -ep "Would you like to open it in a text editor? ${optdata__exec__dry_run:+(dry run) }[Y/n] "; do
+              case $REPLY in
+                [Yy] | '' ) break ;;
+                [Nn] ) exit 1 ;;
+              esac
+            done
+          ;;
+        esac
+        optdata__config__edit "$1"
+        exit
       fi
     ;;
     edit )
       if [[ -f $1 ]]; then
         optdata__config__edit "$1"; exit
       else
-        printf '%s\n' "No configuration file ${1@Q} to edit. Use ‘--config=generate’ to generate one." >&2; exit 1
+        printf '%s\n' "No configuration file ${1@Q} to edit. Use ‘--config=generate’ to generate one."
+        exit 1
       fi
     ;;
     generate )
       if [[ -f $1 ]]; then
-        while read -ep "Configuration file ${1@Q} already exists. Would you like to overwrite it? ${optdata__exec__dry_run:+(dry run) }[y/N] "; do
-          case $REPLY in
-            [Yy] ) optdata__config__generate "$1"; exit ;;
-            [Nn] | '' ) exit 1 ;;
-          esac
-        done
+        case $opt_exec_risky in
+          ask )
+            while read -ep "Configuration file ${1@Q} already exists. Would you like to overwrite it? ${optdata__exec__dry_run:+(dry run) }[y/N] "; do
+              case $REPLY in
+                [Yy] ) break ;;
+                [Nn] | '' ) exit 1 ;;
+              esac
+            done
+          ;;
+          no )
+            printf '%s\n' "Configuration file ${1@Q} already exists."
+            exit 1
+          ;;
+        esac
+        optdata__config__generate "$1"
+        exit 
       else
         optdata__config__generate "$1"; exit
       fi
     ;;
     remove )
       if [[ -f $1 ]]; then
-        while read -ep "Configuration file ${1@Q} will be deleted. Are you sure you want to proceed? ${optdata__exec__dry_run:+(dry run) }[y/N] "; do
-          case $REPLY in
-            [Yy] )
-              optdata__exec__run -- rm ${opt_exec_verbose:+-v} -- "$1" &&
-                if [[ $opt_exec ]]; then
-                  printf '%s\n' "Deleted configuration file ${_@Q}."
-                else
-                  printf '%s\n' "(dry run) Would have deleted configuration file ${_@Q}."
-                fi
-              if (shopt -s dotglob nullglob; set -- "${1%/*}/"*; [[ $# -eq 0 || ( ! $opt_exec && $# -eq 1 ) ]]); then
-                optdata__exec__run -- rmdir ${opt_exec_verbose:+-v} -- "${1%/*}" &&
-                  if [[ $opt_exec ]]; then
-                    printf '%s\n' "Deleted empty configuration directory ${_@Q}."
-                  else
-                    printf '%s\n' "(dry run) Would have deleted empty configuration directory ${_@Q}."
-                  fi
-              fi
-              exit
-            ;;
-            [Nn] | '' ) exit 1 ;;
-          esac
-        done
+        case $opt_exec_risky in
+          ask )
+            while read -ep "Configuration file ${1@Q} will be deleted. Are you sure you want to proceed? ${optdata__exec__dry_run:+(dry run) }[y/N] "; do
+              case $REPLY in
+                [Yy] ) break ;;
+                [Nn] | '' ) exit 1 ;;
+              esac
+            done
+          ;;
+          no )
+            printf '%s\n' "Configuration file ${1@Q} would be deleted."
+            exit 1
+          ;;
+        esac
+        optdata__exec__run -- rm ${opt_exec_verbose:+-v} -- "$1" &&
+          if [[ $opt_exec ]]; then
+            printf '%s\n' "Deleted configuration file ${_@Q}."
+          else
+            printf '%s\n' "(dry run) Would have deleted configuration file ${_@Q}."
+          fi
+        if (shopt -s dotglob nullglob; set -- "${1%/*}/"*; [[ $# -eq 0 || ( ! $opt_exec && $# -eq 1 ) ]]); then
+          optdata__exec__run -- rmdir ${opt_exec_verbose:+-v} -- "${1%/*}" &&
+            if [[ $opt_exec ]]; then
+              printf '%s\n' "Deleted empty configuration directory ${_@Q}."
+            else
+              printf '%s\n' "(dry run) Would have deleted empty configuration directory ${_@Q}."
+            fi
+        fi
+        exit
       else
-        printf '%s\n' "Configuration file ${1@Q} does not exist." >&2; exit 1
+        printf '%s\n' "Configuration file ${1@Q} does not exist."
+        exit 1
       fi
     ;;
   esac

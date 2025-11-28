@@ -17,6 +17,9 @@
             <p>
                 Added a <code>(dry run)</code> indicator to some prompts that didn't have it.
             </p>
+            <p>
+                <code>--config</code> now works with <code>--exec-verbose</code> and <code>--exec-risky</code>.
+            </p>
         </td>
     </tr>
     <tr>
