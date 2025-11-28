@@ -20,6 +20,13 @@
             <p>
                 <code>--config</code> now works with <code>--exec-verbose</code> and <code>--exec-risky</code>.
             </p>
+            <p>
+                Fixes to the <code>--edit --copy</code> mode:
+                <ul>
+                    <li>In <code>vim</code> / <code>nvim</code>, contents of the new file would get appended to the contents of the old file when a file matching <code>&lt;new_script_name&gt;</code> already existed. Now fixed.</li>
+                    <li>In the prompt "A file with the name <code>&lt;script_name&gt;</code> already exists", <code>&lt;old_script_name&gt;</code> would be displayed instead of <code>&lt;new_script_name&gt;</code>. Now fixed.</li>
+                </ul>
+            </p>
         </td>
     </tr>
     <tr>
