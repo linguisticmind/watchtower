@@ -45,24 +45,75 @@ function get_unix_file_type {
   return 1
 }
 
-function print_quot {
-  local -- glob_spec_chars='*[[:space:][:cntrl:]!"#$&'\''()*;<>?\[\\\]^`{|}~]*'
-  local -- i
-  for (( i = 1; i <= $#; i++ )); do
-    if [[ ${!i} == $glob_spec_chars ]]; then
-      if [[ ${!i} == *\'* ]]; then
-        : "${!i}"; : "$(declare -p _)"; printf '%s' "${_#declare -- _=}"
-      else
-        printf '%s' "${!i@Q}"
-      fi
-    elif [[ ${!i} == '' ]]; then
-      printf '%s' \'\'
-    else
-      printf '%s' "${!i}"
-    fi
-    (( i < $# )) && printf ' '
+function print_quoted {
+
+  local opt_quote='auto'
+
+  local -- OPTIND OPTARG OPTERR arg
+  while getopts ':12a' arg; do
+    case $arg in
+      1 ) opt_quote='prefer-single' ;;
+      2 ) opt_quote='prefer-double' ;;
+      a ) opt_all=1 ;;
+      : ) printf '%s\n' "[${script_name:+$script_name:}$FUNCNAME] Missing argument to -$OPTARG." >&2; return 1 ;;
+      ? ) printf '%s\n' "[${script_name:+$script_name:}$FUNCNAME] Invalid option: -$OPTARG." >&2; return 1 ;;
+    esac
   done
+  shift "$((OPTIND - 1))"
+  unset -v OPTIND OPTARG OPTERR arg
+
+  local -- glob_spec_chars='*[[:space:][:cntrl:]!"#$&'\''()*;<>?\[\\\]^`{|}~]*'
+
+  case $opt_quote in
+    prefer-single )
+      local -- i
+      for (( i = 1; i <= $#; i++ )); do
+        if [[ $opt_all || ${!i} == $glob_spec_chars ]]; then
+          : "${!i@Q}"; : "${_/#\'\'}"; printf '%s' "${_/%\'\'}"
+        elif [[ ${!i} == '' ]]; then
+          printf '%s' \'\'
+        else
+          printf '%s' "${!i}"
+        fi
+        (( i < $# )) && printf ' '
+      done
+      unset -v i
+    ;;
+    prefer-double )
+      local -- i
+      for (( i = 1; i <= $#; i++ )); do
+        if [[ $opt_all || ${!i} == $glob_spec_chars ]]; then
+          : "${!i}"; : "$(declare -p _)"; printf '%s' "${_#declare -- _=}"
+        elif [[ ${!i} == '' ]]; then
+          printf '%s' \"\"
+        else
+          printf '%s' "${!i}"
+        fi
+        (( i < $# )) && printf ' '
+      done
+      unset -v i
+    ;;
+    auto )
+      local -- i
+      for (( i = 1; i <= $#; i++ )); do
+        if [[ $opt_all || ${!i} == $glob_spec_chars ]]; then
+          if [[ ${!i} == *\'* ]]; then
+            : "${!i}"; : "$(declare -p _)"; printf '%s' "${_#declare -- _=}"
+          else
+            printf '%s' "${!i@Q}"
+          fi
+        elif [[ ${!i} == '' ]]; then
+          printf '%s' \'\'
+        else
+          printf '%s' "${!i}"
+        fi
+        (( i < $# )) && printf ' '
+      done
+      unset -v i
+    ;;
+  esac
   printf '\n'
+
 }
 
 declare -- opts
@@ -279,7 +330,7 @@ function optdata__exec__run {
   fi
   if [[ $opt_exec_print ]]; then
     printf '%s' "${optdata__exec__dry_run:+(dry run) }${opt_color:+$'\x1b[1m'}$ ${opt_color:+$'\x1b[0m'}"
-    print_quot "$@" |
+    print_quoted -- "$@" |
       if \
         { type -P batcat || type -P bat; } > /dev/null; then
         "$_" \
