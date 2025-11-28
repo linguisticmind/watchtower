@@ -29,23 +29,6 @@ declare -- watchtower_scripts_dir="$config_dir/scripts"
 
 shopt -s extglob globstar nullglob
 
-function get_unix_file_type {
-  local -- t
-  for t in f d L b c p S; do
-    test -"$t" "$1" && case $t in
-      f ) printf '%s\n' 'regular file' ;;
-      d ) printf '%s\n' 'directory' ;;
-      L ) printf '%s\n' 'symbolic link' ;;
-      b ) printf '%s\n' 'block special' ;;
-      c ) printf '%s\n' 'character special' ;;
-      p ) printf '%s\n' 'named pipe' ;;
-      S ) printf '%s\n' 'socket' ;;
-    esac && return 0
-  done
-  unset -v t
-  return 1
-}
-
 function print_quoted {
 
   local opt_quote='auto'
@@ -115,6 +98,23 @@ function print_quoted {
   esac
   printf '\n'
 
+}
+
+function get_unix_file_type {
+  local -- t
+  for t in f d L b c p S; do
+    test -"$t" "$1" && case $t in
+      f ) printf '%s\n' 'regular file' ;;
+      d ) printf '%s\n' 'directory' ;;
+      L ) printf '%s\n' 'symbolic link' ;;
+      b ) printf '%s\n' 'block special' ;;
+      c ) printf '%s\n' 'character special' ;;
+      p ) printf '%s\n' 'named pipe' ;;
+      S ) printf '%s\n' 'socket' ;;
+    esac && return 0
+  done
+  unset -v t
+  return 1
 }
 
 declare -- opts
