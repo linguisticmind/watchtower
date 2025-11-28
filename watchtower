@@ -298,12 +298,17 @@ function optdata__exec__run {
   if [[ $opt_exec_print ]]; then
     printf '%s' "${optdata__exec__dry_run:+(dry run) }${opt_color:+$'\x1b[1m'}$ ${opt_color:+$'\x1b[0m'}"
     print_quot "$@" |
-      bat_or_cat \
-        --no-config \
-        --style=plain \
-        --paging=never \
-        --language=bash \
-        --color=never ${opt_color:+--color=always}
+      if \
+        { type -P batcat || type -P bat; } > /dev/null; then
+        "$_" \
+          --no-config \
+          --style=plain \
+          --paging=never \
+          --language=bash \
+          --color=never ${opt_color:+--color=always}
+      else
+        cat -n
+      fi
   fi
   if [[ $opt_exec ]]; then "$@"; fi
 }
