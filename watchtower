@@ -29,24 +29,6 @@ declare -- watchtower_scripts_dir="$config_dir/scripts"
 
 shopt -s extglob globstar nullglob
 
-function bat_or_cat {
-  if { type -P batcat || type -P bat; } > /dev/null; then
-    "$_" "$@" 
-  else
-    local -- opt_numbers=
-    for (( i = 1; i <= $#; i++ )); do
-      case ${!i} in
-        -n ) opt_numbers=1 ;;
-        --style ) : "$((i + 1))"; [[ ${!_} =~ (^|,)numbers(,|$) ]] && opt_numbers=1 || opt_numbers=; (( i++ )) ;;
-        --style=* ) [[ ${!i##--style=} =~ (^|,)numbers(,|$) ]] && opt_numbers=1 || opt_numbers= ;;
-        -- ) set -- "${@:$(( i + 1 ))}"; break ;;
-      esac
-      if (( i == $# )); then set --; fi
-    done
-    cat ${opt_numbers:+-n} -- "$@"
-  fi
-}
-
 function get_unix_file_type {
   local -- t
   for t in f d L b c p S; do
