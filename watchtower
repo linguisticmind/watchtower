@@ -257,11 +257,11 @@ esac
 declare -- optdata__exec__dry_run=
 if [[ ! $opt_exec ]]; then optdata__exec__dry_run=1; fi
 
-declare -- optdata__exec_print__inhibit_obtrusive=
+declare -- optdata__exec_print__inhibit=
 
 case $opt_exec_print in
   always ) opt_exec_print=1 ;;
-  almost-always ) optdata__exec_print__inhibit_obtrusive=1 opt_exec_print=1 ;;
+  almost-always ) optdata__exec_print__inhibit=1 opt_exec_print=1 ;;
   auto ) [[ ! $opt_exec ]] && opt_exec_print=1 || opt_exec_print= ;;
   never ) opt_exec_print= ;;
   * ) printf '%s\n' "${opt_color:+$'\x1b[31m'}[$script_name] Invalid argument to ${opt_color:+$'\x1b[1m'}--exec-print${opt_color:+$'\x1b[22m'} or invalid configuration. ${opt_color:+$'\x1b[1m'}opt_exec_print${opt_color:+$'\x1b[22m'} is set to ${opt_exec_print@Q}. Allowed values are ['always'], 'almost-always', 'auto', 'never'.${opt_color:+$'\x1b[0m'}" >&2; had_errors=1 ;;
@@ -286,7 +286,7 @@ function optdata__exec__run {
   unset -v OPTIND OPTARG OPTERR arg
   if [[ $opt_exec_print && \
         ( $opt_inhibit && \
-          ( $opt_exec && $optdata__exec_print__inhibit_obtrusive ) ) ]]; then
+          ( $opt_exec && $optdata__exec_print__inhibit ) ) ]]; then
     opt_exec_print=
   fi
   if [[ $optdata__exec_print__flip ]]; then
