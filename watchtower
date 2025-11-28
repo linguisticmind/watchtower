@@ -1119,8 +1119,9 @@ case $mode in
         done
       ;;
       no )
-        printf '%s\n' 'The following files would be deleted:'
+        printf '%s\n' 'The following files were about to be deleted:'
         printf '%s\n' "$@"
+        printf '%s\n' "${opt_color:+$'\x1b[1m'}opt_exec_risky${opt_color:+$'\x1b[22m'} is set to ${opt_exec_risky@Q}. Pass ‘-yy’ to override."
         exit 1
       ;;
     esac
