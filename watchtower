@@ -950,7 +950,7 @@ case $mode in
           )"; do
             case $REPLY in
               [Yy] ) break ;;
-              '' | [Nn] ) exit; break ;;
+              '' | [Nn] ) exit 0 ;;
               * ) ;;
             esac
           done
@@ -1005,7 +1005,7 @@ case $mode in
               )"; do
                 case $REPLY in
                   [Yy] ) break ;;
-                  '' | [Nn] ) exit; break ;;
+                  '' | [Nn] ) exit 0 ;;
                   * ) ;;
                 esac
               done
@@ -1055,7 +1055,7 @@ case $mode in
           )"; do
             case $REPLY in
               [Yy] ) break ;;
-              '' | [Nn] ) exit; break ;;
+              '' | [Nn] ) exit 0 ;;
               * ) ;;
             esac
           done
@@ -1083,7 +1083,7 @@ case $mode in
         )"; do
           case $REPLY in
             [Yy] ) break ;;
-            '' | [Nn] ) exit; break ;;
+            '' | [Nn] ) exit 0 ;;
             * ) ;;
           esac
         done
