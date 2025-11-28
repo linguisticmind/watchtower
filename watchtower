@@ -509,7 +509,10 @@ function optdata__config__run {
             done
           ;;
         esac
-        optdata__config__generate "$1"
+        case $opt_exec_risky in
+          yes ) optdata__config__generate "$1" > /dev/null ;;
+          * ) optdata__config__generate "$1" ;;
+        esac
         case $opt_exec_risky in
           ask )
             while read -ep "Would you like to open it in a text editor? ${optdata__exec__dry_run:+(dry run) }[Y/n] "; do
