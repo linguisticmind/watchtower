@@ -425,7 +425,7 @@ function optdata__exec_risky__check {
     local -- i
     for (( i = 1; i <= ${#dest[@]}; i++ )); do
       if [[ ${has_fail[$i]} ]]; then
-        printf '%s\n' "${dest[$i]}"
+        printf '%s\n' "${dest[$i]@Q}"
       fi
     done
     unset -v i
@@ -434,7 +434,7 @@ function optdata__exec_risky__check {
     local -- i
     for (( i = 1; i <= ${#dest[@]}; i++ )); do
       if [[ ! ${has_fail[$i]} ]]; then
-        printf '%s\n' "${dest[$i]}"
+        printf '%s\n' "${dest[$i]@Q}"
       fi
     done
     unset -v i
@@ -1108,7 +1108,7 @@ case $mode in
       ask )
         while read -ep "$( 
           printf '%s\n' 'The following files will be deleted:'
-          printf '%s\n' "$@"
+          printf '%s\n' "${@@Q}"
           printf '%s\n' "Are you sure that you want to proceed? ${optdata__exec__dry_run:+(dry run) }[y/N] "
         )"; do
           case $REPLY in
@@ -1120,7 +1120,7 @@ case $mode in
       ;;
       no )
         printf '%s\n' 'The following files were about to be deleted:'
-        printf '%s\n' "$@"
+        printf '%s\n' "${@@Q}"
         printf '%s\n' "${opt_color:+$'\x1b[1m'}opt_exec_risky${opt_color:+$'\x1b[22m'} is set to ${opt_exec_risky@Q}. Pass ‘-yy’ to override."
         exit 1
       ;;
