@@ -43,7 +43,7 @@ function print_quoted {
       ? ) printf '%s\n' "[${script_name:+$script_name:}$FUNCNAME] Invalid option: -$OPTARG." >&2; return 1 ;;
     esac
   done
-  shift "$((OPTIND - 1))"
+  shift "$(( OPTIND - 1 ))"
   unset -v OPTIND OPTARG OPTERR arg
 
   local -- glob_spec_chars='*[[:space:][:cntrl:]!"#$&'\''()*;<>?\[\\\]^`{|}~]*'
@@ -146,7 +146,7 @@ declare -- opt_config
 declare -- i
 for (( i = 1; i <= $#; i++ )); do
   case ${!i} in
-    --config ) : "$((i + 1))"; test "${!_}" == 'none' && { opt_config="$_"; break; } ;;
+    --config ) : "$(( i + 1 ))"; test "${!_}" == 'none' && { opt_config="$_"; break; } ;;
     --no-config ) opt_config='none'; break ;;
     -- ) break ;;
   esac
@@ -200,7 +200,7 @@ while true; do
     --menu ) modegrp__listable__submode='list' mode__list__submode='menu'; shift ;;
     -c )
       mode='command'
-      ((modeswdata__command__n++))
+      (( modeswdata__command__n++ ))
       case $modeswdata__command__n in
         1 ) mode__command__submode='arguments' ;;
         2 ) mode__command__submode='string' ;;
@@ -257,7 +257,7 @@ while true; do
     -v | --exec-verbose ) opt_exec_verbose=1; shift ;;
     -V | --exec-no-verbose ) opt_exec_verbose=; shift ;;
     -y )
-      ((optdata__exec_risky__n++))
+      (( optdata__exec_risky__n++ ))
       case $optdata__exec_risky__n in
         1 ) opt_exec_risky='ask' ;;
         2 ) opt_exec_risky='yes' ;;
