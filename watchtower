@@ -1029,7 +1029,7 @@ case $mode in
           case $opt_exec_risky in
             ask )
               while read -ep "$( 
-                printf '%s\n' "A file with the name ${nonopts_orig[1]@Q} already exists:"
+                printf '%s\n' "A file with the name ${nonopts_orig[2]@Q} already exists:"
                 printf '%s\n' "$check_result"
                 printf '%s\n' "Would you like to overwrite it? ${optdata__exec__dry_run:+(dry run) }[y/N] "
               )"; do
@@ -1048,7 +1048,7 @@ case $mode in
           esac
         fi
         unset -v check_result
-        declare -- vim_script="execute 'read' '${1//\'/\'\'}' | 1 d"
+        declare -- vim_script="1,$ d | execute 'read' '${1//\'/\'\'}' | 1 d"
         declare -- editor="${VISUAL:-${EDITOR:-nano}}"
         case $editor in
           vim ) optdata__exec__run -i -- "$editor" --not-a-term -c "$vim_script" -- "$2" ;;
