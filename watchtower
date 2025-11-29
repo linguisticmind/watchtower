@@ -347,7 +347,7 @@ function optdata__exec__run {
           --language=bash \
           --color=never ${opt_color:+--color=always}
       else
-        cat -n
+        cat
       fi
   fi
   if [[ $opt_exec ]]; then "$@"; fi
