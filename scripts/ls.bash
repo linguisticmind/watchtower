@@ -14,6 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# version: 0.1.0
+# version: 0.1.1
 
-ls --color=never ${WATCHTOWER_SCRIPT[color]:+--color=always} --format=vertical "$@"
+ls --color=never ${WATCHTOWER_SCRIPT[color]:+--color=always} --quoting-style=shell --format=vertical "$@"
