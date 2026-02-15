@@ -14,6 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# version: 0.1.0
+# version: 0.1.1
 
-tree -n ${WATCHTOWER_SCRIPT[color]:+-C} "$@" | head -n -2
+tree -n ${WATCHTOWER_SCRIPT[color]:+-C} --noreport "$@"
