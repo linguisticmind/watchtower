@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# version: 0.1.0
+# version: 0.1.1
 
 declare -A sed_script
 
@@ -43,6 +43,7 @@ IFS= read -rd '' 'sed_script[2]' <<- EOF
 EOF
 
 timew \
+  :nocolor \
   'rc.reports.summary.range=all' \
   'rc.reports.summary.ids=yes' \
   'rc.reports.summary.annotations=yes' \
